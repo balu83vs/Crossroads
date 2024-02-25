@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 PRIORITY_QUEUE = []
 
-WARNING_TRAFFIC_LEVEL = 20
+WARNING_TRAFFIC_LEVEL = 50
 
 
 ########################################  абстрактный класс светофора #################################################
@@ -19,7 +19,7 @@ class UniversalTrafficLight(ABC):
         self.camera = camera           # данные камеры трафика 
         self.priority = priority       # приоритет 
         self.state = {"RED": True, "GREEN": False}             # состояние светофора (по умолчанию)
-        self.queue_size = 0            # размер очереди перед светофором (данные из camera) 
+        self.queue_size = -100            # размер очереди перед светофором (данные из camera) 
         self.timer = None              # таймер 
         self.event_queue = []          # очередь сообщений 
  
@@ -106,25 +106,75 @@ class UniversalTrafficLight(ABC):
         crossroads_status(f'Светофор {self.id}', status)
 
 
-    # установка приоритета (абстрактный метод)   
+    # установка приоритета основному   
     def grant_priority(self, status = None):
+        slave_lights = [avto_lights[slave_id-1] for slave_id in adaptation_avto.get_slave_lights(self)]  
         self.set_priority(True)
         crossroads_status(f'Светофор {self.id}', status)
         self.red_to_green()
-        self.set_queue_size(self.get_queue_size() - 1)
+        if self.get_queue_size() > 0:
+            self.set_queue_size(self.get_queue_size() - 1)
         status = f'проезд автомобиля по {self.get_state()} сигналу'
         crossroads_status(f'Светофор {self.id}', status)
         if len(PRIORITY_QUEUE) > 0:
             PRIORITY_QUEUE.pop(0)
+        # установка приоритета всем зависимым авто    
+        for slave_light in slave_lights:
+            if not slave_light.get_priority():
+                slave_light.grant_priority_for_slave_avto("получил приоритет как зависимый")
+        # сброс приоритета у независимых авто
+        for light in avto_lights:
+            if light.id != self.id and light.id not in slave_lights:
+                if light.get_priority():
+                    if light.get_queue_size() <= WARNING_TRAFFIC_LEVEL:
+                        light.drop_priority("потерял приоритет из-за конфликта")
+                    else:
+                        # восстановление приоритета всем зависимым авто    
+                        for slave_light in slave_lights:
+                            if not slave_light.get_priority():
+                                slave_light.grant_priority_for_slave_avto("приоритет восстановлен как у зависимого")
 
 
-    # сброс приоритета 
-    def drop_priority(self):
-        self.set_priority(False)       
-        status = 'потерял приоритет'
+    # установка приоритета зависимому   
+    def grant_priority_for_slave_avto(self, status = None):
+        self.set_priority(True)
         crossroads_status(f'Светофор {self.id}', status)
-        self.green_to_red()  
-                         
+        self.red_to_green()
+        if self.get_queue_size() > 0:
+            self.set_queue_size(self.get_queue_size() - 1)
+        status = f'проезд автомобиля по {self.get_state()} сигналу'
+        crossroads_status(f'Светофор {self.id}', status)
+
+
+    # сброс приоритета основному
+    def drop_priority(self, status = None):
+        if self.get_queue_size() <= WARNING_TRAFFIC_LEVEL:
+            slave_lights = [avto_lights[slave_id-1] for slave_id in adaptation_avto.get_slave_lights(self)]
+            self.set_priority(False)       
+            status = 'потерял приоритет'
+            crossroads_status(f'Светофор {self.id}', status)
+            self.green_to_red()  
+            # сброс приоритета всем зависимым авто    
+            for slave_light in slave_lights:
+                if slave_light.get_priority():
+                    slave_light.drop_priority_for_slave()
+
+
+    # сброс приоритета зависимому
+    def drop_priority_for_slave(self):
+        slave_lights = [avto_lights[slave_id-1] for slave_id in adaptation_avto.get_slave_lights(self)]
+        if self.get_priority():
+            if self.get_queue_size() <= WARNING_TRAFFIC_LEVEL:
+                self.set_priority(False)       
+                status = 'потерял приоритет как зависимый'
+                crossroads_status(f'Светофор {self.id}', status)
+                self.green_to_red()
+            else:
+                # восстановление приоритета всем зависимым авто    
+                for slave_light in slave_lights:
+                    if not slave_light.get_priority():
+                        slave_light.grant_priority_for_slave_avto("приоритет восстановлен как у зависимого")
+          
 
     # смена сфетофора с зеленого на красный (абстрактный метод)   
     @abstractmethod
@@ -143,20 +193,26 @@ class UniversalTrafficLight(ABC):
     def controller(self):
 
         adaptation_avto.check_warning_level(self) # проверка превышения опасного уровня траффика
+        max_queue_size = max([light.queue_size for light in avto_lights]) # максимальный уровень трафика из всех авто
 
-        # сбрасываем имеющийся приоритет   
-        # пока есть приоритет в очереди или превышение опасного уровня трафика, приоритет не снимается
-        if ((len(PRIORITY_QUEUE)>0 and PRIORITY_QUEUE[0] == self.id) or 
-               (self.queue_size > WARNING_TRAFFIC_LEVEL and 
-                self.queue_size == max([light.queue_size for light in avto_lights]))):  
-            if self.get_priority():
-                self.set_queue_size(self.get_queue_size() - 1)
+        # если приоритет еще есть
+        if self.get_priority():    
+            # не сбрасываем имеющийся приоритет если:   
+            """ 
+            - приоритет в очереди 
+            - превышение опасного уровня трафика 
+            """
+            if ((len(PRIORITY_QUEUE)>0 and PRIORITY_QUEUE[0] == self.id) or 
+                (self.queue_size > WARNING_TRAFFIC_LEVEL and self.queue_size == max_queue_size)):
+                if self.get_queue_size() > 0:
+                    self.set_queue_size(self.get_queue_size() - 1)
                 status = f'проезд автомобиля по {self.get_state()} сигналу'
                 crossroads_status(f'Светофор {self.id}', status)
+                # если очередь приоритета не пуста
                 if len(PRIORITY_QUEUE) > 0:
-                    PRIORITY_QUEUE.pop(0)
-        else:    
-            if self.get_priority():
+                    PRIORITY_QUEUE.pop(0) # читаем следующий приоритет 
+            # снимаем приоритет
+            else:    
                 self.drop_priority() 
 
         # начальный трафик с камеры контроля
@@ -166,7 +222,7 @@ class UniversalTrafficLight(ABC):
             crossroads_status(f'Светофор {self.id}', status)
         # обновление данных трафика с камеры контроля    
         else:
-            self.set_queue_size(self.get_queue_size() + random.randrange(0,10)) 
+            self.set_queue_size(self.get_queue_size() + random.randrange(0,5)) 
             status = f'получил прибавку трафика от камеры'
             crossroads_status(f'Светофор {self.id}', status)
 
@@ -184,14 +240,12 @@ class UniversalTrafficLight(ABC):
 
         # отправляем сообщения из очереди в обработчик            
         self.process_events()       
-
-                
 #####################################  конец класса абстрактного светофора ###########################################
 
 
 
 ########################################### класс автомобильного светофора ###########################################
-class AutoTrafficLight(UniversalTrafficLight):
+class AvtoTrafficLight(UniversalTrafficLight):
 
     # переключение на зеленый (через желтый)
     def red_to_green(self):
@@ -215,7 +269,6 @@ class AutoTrafficLight(UniversalTrafficLight):
             self.set_state("RED")
             status = f'переключился на красный'
             crossroads_status(f'Светофор {self.id}', status)
-
 ###################################### конец класса автомобильного светофора ##########################################
 
 
@@ -243,7 +296,7 @@ class PeopleTrafficLight(UniversalTrafficLight):
 ############################################### класс камеры ###########################################################
 class Camera:
     def __init__(self):
-        self.queue_size = random.randrange(0,5)
+        self.queue_size = random.randrange(0,2)
 
     # получить размер очереди перед светофором
     def get_queue_size(self):
@@ -259,8 +312,8 @@ class Adaptation:
         self.lights = lights
         self.slave_lights = {}
 
-    def get_slave_lights(self):
-        return self.slave_lights    
+    def get_slave_lights(self, current_light):
+        return self.slave_lights.get(current_light.id)    
 
     def set_slave_lights(self, slave_lights):
         self.set_slave_lights = slave_lights      
@@ -280,20 +333,22 @@ class Adaptation:
         if other.queue_size > WARNING_TRAFFIC_LEVEL and other.queue_size == max([light.queue_size for light in avto_lights]):
             if not other.get_priority():
                 other.grant_priority('получил приоритет по максимальному трафику') 
-
 ############################################### конец адаптивного модуля ###############################################
 
 
 
 ############################################# Блок управляющих функций #################################################
+
+
 # подключение светофоров к перекрестку
 def create_lights():
+
     # экземпляры автомобильных светофоров
     avto_lights = [
-        AutoTrafficLight(1, Camera(), False),
-        AutoTrafficLight(2, Camera(), False),
-        AutoTrafficLight(3, Camera(), False),
-        AutoTrafficLight(4, Camera(), False)
+        AvtoTrafficLight(1, Camera(), False),
+        AvtoTrafficLight(2, Camera(), False),
+        AvtoTrafficLight(3, Camera(), False),
+        AvtoTrafficLight(4, Camera(), False)
         ]
     
     # экземпляры пешеходных светофоров
@@ -338,7 +393,6 @@ def crossroads_status(current_id = 'Обновлений', status = 'НЕТ'):
     #for people_light in people_lights:
     #    current_queue_size = people_light.get_queue_size()
     #    print(people_light.id, people_light.state, current_queue_size) 
-
 
 
 # главная компилирующая функция перекрестка   
