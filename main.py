@@ -21,77 +21,79 @@ DAY_TRAFFIC_LEVEL = cycle([1,1,2,2,3,3,4,4,5,5,6,7,6,5,5,4,4,3,3,2,2,1,1]) # н�
 ########################################  абстрактный класс светофора #################################################
 class UniversalTrafficLight(ABC):
 
-    def __init__(self, id, camera, priority, conn_status = False, slave_auto_lights = [], slave_people_lights = []):
-        self.id = id                   # уникальный идентификатор
-        self.camera = camera           # данные камеры трафика 
-        self.priority = priority       # приоритет 
-        self.priority_index = 0        # индекс приоритета 
-        self.state = "RED"             # состояние светофора (по умолчанию)
-        self.queue_size = -100         # размер очереди перед светофором (данные из camera) 
-        self.timer = None              # таймер 
-        self.event_queue = []          # очередь сообщений 
-        self.conn_status = conn_status # статус сети
-        self.slave_auto_lights = slave_auto_lights
-        self.slave_people_lights = slave_people_lights
+    def __init__(self, 
+                 id: int, camera, priority: bool, conn_status:bool = False, 
+                 slave_auto_lights:list = [], slave_people_lights:list = []) -> None:
+        self.id = id                                    # уникальный идентификатор
+        self.camera = camera                            # данные камеры трафика 
+        self.priority = priority                        # приоритет 
+        self.priority_index = 0                         # индекс приоритета 
+        self.state = "RED"                              # состояние светофора (по умолчанию)
+        self.queue_size = -100                          # размер очереди перед светофором (данные из camera) 
+        self.timer = None                               # таймер 
+        self.event_queue = []                           # очередь сообщений 
+        self.conn_status = conn_status                  # статус сети
+        self.slave_auto_lights = slave_auto_lights      # список зависимых авто светофоров
+        self.slave_people_lights = slave_people_lights  # список зависимых пешеходных светофоров
 
 
     # получить текущий цвет
-    def get_state(self):
+    def get_state(self)-> str:
         return self.state
 
 
     # установить текущий цвет 
-    def set_state(self, state):
+    def set_state(self, state: str)-> None:
         self.state = state
 
 
     # получить размер очереди перед светофором
-    def get_queue_size(self):
+    def get_queue_size(self)-> int:
         return self.queue_size
 
 
     # установить размер очереди перед светофором
-    def set_queue_size(self, queue_size):
+    def set_queue_size(self, queue_size:int)->None:
         self.queue_size = queue_size
 
 
     # получить приоритет
-    def get_priority(self):
+    def get_priority(self)-> bool:
         return self.priority
 
 
     # установить приоритет
-    def set_priority(self, priority):
+    def set_priority(self, priority:bool)-> None:
         self.priority = priority
 
 
     # получить индекс приоритета
-    def get_priority_index(self):
+    def get_priority_index(self)-> int:
         return self.priority_index
     
 
     # установить индекс приоритета
-    def set_priority_index(self, priority_index):
+    def set_priority_index(self, priority_index:int)-> None:
         self.priority_index = priority_index  
 
 
     # получить статус подключения
-    def get_conn_status(self):
+    def get_conn_status(self)-> bool:
         return self.conn_status
     
 
     # установить статус подключения
-    def set_conn_status(self, conn_status):
+    def set_conn_status(self, conn_status:bool)-> None:
         self.conn_status = conn_status      
 
 
     # добавить сообщение в очередь сообщений
-    def send_event(self, event):
+    def send_event(self, event:dict)->None:
         self.event_queue.append(event)
 
 
     # обработчик очереди сообщений
-    async def process_events(self, traffic_lights):
+    async def process_events(self, traffic_lights: list)-> None:
         # пока очередь сообщений не пуста
         while self.event_queue:
             event = self.event_queue.pop(0)                        # считывание первого сообщения 
@@ -99,7 +101,7 @@ class UniversalTrafficLight(ABC):
 
 
     # обработчик сообщений
-    async def handle_event(self, event, traffic_lights):
+    async def handle_event(self, event, traffic_lights: list)-> None:
         other = traffic_lights[event["sender"]-1]
         # сообщение запроса приоритета
         if event["type"] == "PRIORITY_REQUEST":
@@ -124,7 +126,7 @@ class UniversalTrafficLight(ABC):
 
 
     # запрос приоритета у остальных светофоров
-    async def request_priority(self, other):
+    async def request_priority(self, other)-> None:
         # проверка статуса сети принимающего устройства
         if other.conn_status: 
             # отправка запроса приоритета только on-line устройствам
@@ -139,7 +141,7 @@ class UniversalTrafficLight(ABC):
     """
     отправляет пакет CONN_STATUS, который определяет доступность светофора в сети
     """    
-    def connection_status(self):
+    def connection_status(self)-> None:
         # отправка запроса приоритета
         for other in traffic_lights:
             if other.id != self.id:
@@ -152,12 +154,12 @@ class UniversalTrafficLight(ABC):
 
     # установка приоритета (абстрактный метод)   
     @abstractmethod
-    async def grant_priority(self):
+    async def grant_priority(self)-> None:
         pass
 
 
     # установка приоритета зависимым светофорам
-    async def other_grant_priority(self):
+    async def other_grant_priority(self)-> None:
         # установка приоритета авто светофорам
         for slave_auto in self.slave_auto_lights:
             other_auto = auto_lights[slave_auto-1]
@@ -172,7 +174,7 @@ class UniversalTrafficLight(ABC):
 
 
     # сброс приоритета
-    async def drop_priority(self):
+    async def drop_priority(self)-> None:
         if self.get_priority():
             # сброс приоритета по встроенному временному таймеру
             traffic_coef = self.queue_size // 10 # множитель трафика (тем больше, чем выше трафик перед светофором)
@@ -196,7 +198,7 @@ class UniversalTrafficLight(ABC):
 
 
     # сброс приоритета другим 
-    async def other_drop_priority(self):
+    async def other_drop_priority(self)-> None:
         # сброс приоритета зависимым авто светофорам
         for slave in self.slave_auto_lights:
             auto_slave = auto_lights[slave-1]
@@ -213,7 +215,7 @@ class UniversalTrafficLight(ABC):
 
 
     # прерывание приоритета по времени (связка с таймером сброса по времени)
-    async def timer_expired(self):
+    async def timer_expired(self)-> None:
         self.set_priority(False)                            # сброс приоритета
         status = 'утратил приоритет по времени'             # причина сброса приоритета
         await self.green_to_red(status)                     # переключение светофора на красный         
@@ -221,19 +223,19 @@ class UniversalTrafficLight(ABC):
 
     # смена сфетофора с зеленого на красный (абстрактный метод)   
     @abstractmethod
-    async def green_to_red(self, status = '...'):
+    async def green_to_red(self, status = '...')-> None:
         pass
 
 
     # смена сфетофора с красного на зеленый (абстрактный метод)   
     @abstractmethod
-    async def red_to_green(self, status = '...'):
+    async def red_to_green(self, status = '...')-> None:
         pass
 
 
     # функция управления светофором
     @property
-    async def traffic_light_control(self):
+    async def traffic_light_control(self)->None:
         # аварийный режим при потере связи
         if not self.conn_status:
             self.set_state('YELLOW')    
@@ -273,12 +275,13 @@ class UniversalTrafficLight(ABC):
 ########################################### класс автомобильного светофора ###########################################
 class AutoTrafficLight(UniversalTrafficLight):
 
-    def __init__(self, id, camera, priority, conn_status = False, slave_auto_lights = [], slave_people_lights = []):
-        super().__init__(id, camera, priority, conn_status, slave_auto_lights, slave_people_lights) # переменные родительского класса (можно не использовать)
-
+    def __init__(self, id:int, camera, priority:bool, conn_status:bool = False, 
+                 slave_auto_lights:list = [], slave_people_lights:list = [])-> None:
+        super().__init__(id, camera, priority, conn_status, 
+                         slave_auto_lights, slave_people_lights) # переменные родительского класса (можно не использовать)
 
     # метод установки приоритета (переопределяем)   
-    async def grant_priority(self, status):
+    async def grant_priority(self, status:str)-> None:
         # сброс возможных конфликтных приоритетов
         for other_auto in auto_lights:
             # выборка не зависимых светофоров
@@ -302,7 +305,7 @@ class AutoTrafficLight(UniversalTrafficLight):
 
                     
     #  смена светофора с зеленого на красный 
-    async def green_to_red(self, status = '...'):
+    async def green_to_red(self, status:str = '...')-> None:
         self.set_state("YELLOW")                            # установка желтого сигнала (1 с.)
         crossroads_status()                                 # обновление панели    
         time.sleep(0.33)
@@ -311,7 +314,7 @@ class AutoTrafficLight(UniversalTrafficLight):
 
 
     #  смена светофора с красного на зеленый 
-    async def red_to_green(self, status = '...'):
+    async def red_to_green(self, status:str = '...')-> None:
         self.set_state("YELLOW")                            # установка желтого сигнала (1 с.)
         crossroads_status()                                 # обновление панели    
         time.sleep(0.33)
@@ -324,12 +327,13 @@ class AutoTrafficLight(UniversalTrafficLight):
 ######################################## класс пешеходного светофора ##################################################
 class PeopleTrafficLight(UniversalTrafficLight):
 
-    def __init__(self, id, camera, priority, conn_status = False, slave_auto_lights = [], slave_people_lights = []):
-        super().__init__(id, camera, priority, conn_status, slave_auto_lights, slave_people_lights) # переменные родительского класса (можно не использовать)
-
+    def __init__(self, id:int, camera, priority:bool, conn_status:bool = False, 
+                 slave_auto_lights:list = [], slave_people_lights:list = [])-> None:
+        super().__init__(id, camera, priority, conn_status, 
+                         slave_auto_lights, slave_people_lights) # переменные родительского класса (можно не использовать)
 
     # метод установки приоритета (переопределяем)   
-    async def grant_priority(self, status):
+    async def grant_priority(self, status:str)-> None:
         # сброс возможных конфликтных приоритетов
         for other_people in people_lights:
             # выборка не зависимых светофоров
@@ -353,13 +357,13 @@ class PeopleTrafficLight(UniversalTrafficLight):
 
 
     #  смена светофора с зеленого на красный 
-    async def green_to_red(self, status = '...'):
+    async def green_to_red(self, status:str = '...')-> None:
         self.set_state("RED")                               # установка красного сигнала
         crossroads_status(f'Светофор {self.id}', status)    # обновление панели
 
 
     #  смена светофора с красного на зеленый 
-    async def red_to_green(self, status = '...'):
+    async def red_to_green(self, status:str = '...')-> None:
         self.set_state("GREEN")                             # установка красного сигнала
         crossroads_status(f'Светофор {self.id}', status)    # обновление панели
 #################################### конец класса пешеходного светофора ################################################
@@ -368,11 +372,11 @@ class PeopleTrafficLight(UniversalTrafficLight):
 
 ############################################### класс камеры ###########################################################
 class Camera:
-    def __init__(self):
+    def __init__(self)-> None:
         self.queue_size = random.randrange(0,MAX_TRAFFIC_ADD)
 
     # получить размер очереди перед светофором
-    def get_queue_size(self):
+    def get_queue_size(self)-> int:
         #print(f"Обновление данных от камеры светофора")
         return self.queue_size
 ############################################### конец класса камеры ####################################################
@@ -381,7 +385,7 @@ class Camera:
 
 ############################################# Блок управляющих функций #################################################
 # подключение светофоров к перекрестку
-def create_lights():
+def create_lights()-> tuple:
     # экземпляры автомобильных светофоров
     auto_lights = [
         AutoTrafficLight(1, Camera(), False, True, [2], [7,8,11,12]),
@@ -405,7 +409,7 @@ def create_lights():
 
 
 # опрос светофоров перекрестка
-def crossroads_status(current_id = 'Обновлений', status = 'НЕТ'):
+def crossroads_status(current_id:str = 'Обновлений', status:str = 'НЕТ')-> None:
     time.sleep(1)
     os.system(['clear', 'cls'][os.name == os.sys.platform])
     print('*'*11, 'Current crossroads status:', '*'*11) 
