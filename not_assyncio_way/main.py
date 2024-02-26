@@ -14,7 +14,7 @@ WARNING_TRAFFIC_LEVEL = 50
 ########################################  абстрактный класс светофора #################################################
 class UniversalTrafficLight(ABC):
 
-    def __init__(self, id, camera, priority):
+    def __init__(self, id: int, camera: int, priority: bool) -> None:
         self.id = id                   # уникальный идентификатор
         self.camera = camera           # данные камеры трафика 
         self.priority = priority       # приоритет 
@@ -25,7 +25,7 @@ class UniversalTrafficLight(ABC):
  
 
     # получить текущий цвет
-    def get_state(self):
+    def get_state(self) -> str:
         for key, value in self.state.items():
             if value:
                 return key
@@ -35,39 +35,39 @@ class UniversalTrafficLight(ABC):
 
 
     # установить текущий цвет 
-    def set_state(self, state):
+    def set_state(self, state: str) -> None:
         current_collor = self.get_state()
         self.state[current_collor] = False
         self.state[state] = True
 
 
     # получить размер очереди перед светофором
-    def get_queue_size(self):
+    def get_queue_size(self) -> int:
         return self.queue_size
 
 
     # установить размер очереди перед светофором
-    def set_queue_size(self, queue_size):
+    def set_queue_size(self, queue_size: int) -> None:
         self.queue_size = queue_size
 
 
     # получить приоритет
-    def get_priority(self):
+    def get_priority(self) -> bool:
         return self.priority
 
 
     # установить приоритет
-    def set_priority(self, priority):
+    def set_priority(self, priority: bool) -> None:
         self.priority = priority
 
 
     # добавить сообщение в очередь сообщений
-    def send_event(self, event):
+    def send_event(self, event: dict) -> None:
         self.event_queue.append(event)
 
 
     # обработчик очереди сообщений
-    def process_events(self):
+    def process_events(self) -> None:
         status = f'обработал сообщения'
         crossroads_status(f'Светофор {self.id}', status)
         # пока очередь сообщений не пуста
@@ -77,7 +77,7 @@ class UniversalTrafficLight(ABC):
 
 
     # обработчик сообщений     
-    def handle_event(self, event):
+    def handle_event(self, event: dict) -> None:
         # указываем светофор назначения
         other = traffic_lights[event["sender"]-1]
         # проверяем тип сообщения
@@ -95,7 +95,7 @@ class UniversalTrafficLight(ABC):
 
 
     # запрос приоритета у остальных светофоров    
-    def request_priority(self, other):
+    def request_priority(self, other) -> None:
         # отправка запроса приоритета
         other.send_event({
             "type": "PRIORITY_REQUEST",
@@ -107,7 +107,7 @@ class UniversalTrafficLight(ABC):
 
 
     # установка приоритета основному   
-    def grant_priority(self, status = None):
+    def grant_priority(self, status = None) -> None:
         slave_lights = [avto_lights[slave_id-1] for slave_id in adaptation_avto.get_slave_lights(self)]  
         self.set_priority(True)
         crossroads_status(f'Светофор {self.id}', status)
@@ -136,7 +136,7 @@ class UniversalTrafficLight(ABC):
 
 
     # установка приоритета зависимому   
-    def grant_priority_for_slave_avto(self, status = None):
+    def grant_priority_for_slave_avto(self, status = None) -> None:
         self.set_priority(True)
         crossroads_status(f'Светофор {self.id}', status)
         self.red_to_green()
@@ -147,7 +147,7 @@ class UniversalTrafficLight(ABC):
 
 
     # сброс приоритета основному
-    def drop_priority(self, status = None):
+    def drop_priority(self, status = None) -> None:
         if self.get_queue_size() <= WARNING_TRAFFIC_LEVEL:
             slave_lights = [avto_lights[slave_id-1] for slave_id in adaptation_avto.get_slave_lights(self)]
             self.set_priority(False)       
@@ -161,7 +161,7 @@ class UniversalTrafficLight(ABC):
 
 
     # сброс приоритета зависимому
-    def drop_priority_for_slave(self):
+    def drop_priority_for_slave(self) -> None:
         slave_lights = [avto_lights[slave_id-1] for slave_id in adaptation_avto.get_slave_lights(self)]
         if self.get_priority():
             if self.get_queue_size() <= WARNING_TRAFFIC_LEVEL:
@@ -178,19 +178,19 @@ class UniversalTrafficLight(ABC):
 
     # смена сфетофора с зеленого на красный (абстрактный метод)   
     @abstractmethod
-    def green_to_red(self):
+    def green_to_red(self) -> None:
         pass
 
 
     # смена сфетофора с красного на зеленый (абстрактный метод)   
     @abstractmethod
-    def red_to_green(self):
+    def red_to_green(self) -> None:
         pass
 
 
     # функция управления светофором
     @property
-    def controller(self):
+    def controller(self) -> None:
 
         adaptation_avto.check_warning_level(self) # проверка превышения опасного уровня траффика
         max_queue_size = max([light.queue_size for light in avto_lights]) # максимальный уровень трафика из всех авто
@@ -248,7 +248,7 @@ class UniversalTrafficLight(ABC):
 class AvtoTrafficLight(UniversalTrafficLight):
 
     # переключение на зеленый (через желтый)
-    def red_to_green(self):
+    def red_to_green(self) -> None:
         if self.get_state() == "RED":
             self.set_state("YELLOW")
             status = f'переключился на желтый'
@@ -260,7 +260,7 @@ class AvtoTrafficLight(UniversalTrafficLight):
   
 
     # переключение на красный (через желтый)
-    def green_to_red(self):
+    def green_to_red(self) -> None:
         if self.get_state() == "GREEN":
             self.set_state("YELLOW")
             status = f'переключился на желтый'
@@ -277,14 +277,14 @@ class AvtoTrafficLight(UniversalTrafficLight):
 class PeopleTrafficLight(UniversalTrafficLight):
 
     # переключение на зеленый
-    def red_to_green(self):
+    def red_to_green(self) -> None:
         if self.get_state() == "RED":
             self.set_state("GREEN")
             status = f'переключился на зеленый'
             crossroads_status(f'Светофор {self.id}', status)
 
     # переключение на красный
-    def green_to_red(self):
+    def green_to_red(self) -> None:
         if self.get_state() == "GREEN":
             self.set_state("RED")
             status = f'переключился на красный'
@@ -295,11 +295,11 @@ class PeopleTrafficLight(UniversalTrafficLight):
 
 ############################################### класс камеры ###########################################################
 class Camera:
-    def __init__(self):
+    def __init__(self) -> None:
         self.queue_size = random.randrange(0,2)
 
     # получить размер очереди перед светофором
-    def get_queue_size(self):
+    def get_queue_size(self) -> int:
         #print(f"Обновление данных от камеры светофора")
         return self.queue_size
 ############################################### конец класса камеры ####################################################
@@ -308,18 +308,18 @@ class Camera:
 
 ############################################### класс адаптивного модуля ################################################
 class Adaptation:
-    def __init__(self, lights):
+    def __init__(self, lights: list) -> None:
         self.lights = lights
         self.slave_lights = {}
 
-    def get_slave_lights(self, current_light):
+    def get_slave_lights(self, current_light: str) -> str:
         return self.slave_lights.get(current_light.id)    
 
-    def set_slave_lights(self, slave_lights):
+    def set_slave_lights(self, slave_lights: str) -> None:
         self.set_slave_lights = slave_lights      
 
     # формируем список зависимых светофоров
-    def create_slave(self, current_light):
+    def create_slave(self, current_light) -> None:
         if current_light.id%2 == 0:
             self.slave_lights.setdefault(current_light.id, 
                                          [light.id for light in self.lights 
@@ -329,7 +329,7 @@ class Adaptation:
                                          [light.id for light in self.lights 
                                           if light.id%2 != 0 and light.id != current_light.id])
 
-    def check_warning_level(self, other):
+    def check_warning_level(self, other) -> None:
         if other.queue_size > WARNING_TRAFFIC_LEVEL and other.queue_size == max([light.queue_size for light in avto_lights]):
             if not other.get_priority():
                 other.grant_priority('получил приоритет по максимальному трафику') 
@@ -341,7 +341,7 @@ class Adaptation:
 
 
 # подключение светофоров к перекрестку
-def create_lights():
+def create_lights() -> tuple:
 
     # экземпляры автомобильных светофоров
     avto_lights = [
@@ -366,7 +366,7 @@ def create_lights():
 
 
 # подключение адаптаций светофоров
-def connect_adaptation():
+def connect_adaptation() -> tuple:
 
     # экземпляры адаптационного модуля
     adaptation_avto = Adaptation(avto_lights)           # подключение модуля адаптации для авто
@@ -376,7 +376,7 @@ def connect_adaptation():
 
 
 # опрос светофоров перекрестка
-def crossroads_status(current_id = 'Обновлений', status = 'НЕТ'):
+def crossroads_status(current_id = 'Обновлений', status = 'НЕТ') -> None:
     time.sleep(1)
     os.system(['clear', 'cls'][os.name == os.sys.platform])
     print('*'*11, 'Current crossroads status:', '*'*11) 
