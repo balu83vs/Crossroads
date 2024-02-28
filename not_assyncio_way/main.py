@@ -36,6 +36,8 @@ class UniversalTrafficLight(ABC):
 
     # установить текущий цвет 
     def set_state(self, state: str) -> None:
+        if isinstance(state, (int,float)):
+            raise TypeError
         current_collor = self.get_state()
         self.state[current_collor] = False
         self.state[state] = True
@@ -366,7 +368,7 @@ def create_lights() -> tuple:
 
 
 # подключение адаптаций светофоров
-def connect_adaptation() -> tuple:
+def connect_adaptation(avto_lights, people_lights) -> tuple:
 
     # экземпляры адаптационного модуля
     adaptation_avto = Adaptation(avto_lights)           # подключение модуля адаптации для авто
@@ -375,28 +377,47 @@ def connect_adaptation() -> tuple:
     return adaptation_avto, adaptation_people
 
 
-# опрос светофоров перекрестка
-def crossroads_status(current_id = 'Обновлений', status = 'НЕТ') -> None:
-    time.sleep(1)
-    os.system(['clear', 'cls'][os.name == os.sys.platform])
-    print('*'*11, 'Current crossroads status:', '*'*11) 
-    print(f'{current_id} - {status}')
+# класс опроса светофоров перекрестка
+class CrossroadsInfoPanel:
+
+    def __init__(self, avto_lights, people_lights):
+        self._avto_lights = avto_lights
+        self._people_lights = people_lights
+
+    # очистка экрана с паузой 1 секунда
+    def clear_panel(self)-> None:
+        time.sleep(1)
+        os.system(['clear', 'cls'][os.name == os.sys.platform])    
+
+    # вывод текущего сообщения для каждого светофора
+    def traffic_light_info(self, current_id = 'Обновлений', status = 'НЕТ') -> None:
+        print('*'*11, 'Current crossroads status:', '*'*11) 
+        print(f'{current_id} - {status}')
 
     # вывод информации об автомобильных светофорах
-    print('*'*15, 'Auto traffic light:', '*'*15)
-    for avto_light in avto_lights:
-        current_queue_size = avto_light.get_queue_size()
-        print(avto_light.id, avto_light.get_state(), avto_light.get_priority(), current_queue_size) 
-    
+    def traffic_light_status(self):    
+        print('*'*15, 'Auto traffic light:', '*'*15)
+        for avto_light in self._avto_lights:
+            current_queue_size = avto_light.get_queue_size()
+            print(avto_light.id, avto_light.get_state(), avto_light.get_priority(), current_queue_size)
+        
     # вывод информации о пешеходных светофорах
-    #print('*'*14, 'People traffic light:', '*'*14)    
-    #for people_light in people_lights:
-    #    current_queue_size = people_light.get_queue_size()
-    #    print(people_light.id, people_light.state, current_queue_size) 
+        print('*'*14, 'People traffic light:', '*'*14)    
+        for people_light in self._people_lights:
+            current_queue_size = people_light.get_queue_size()
+            print(people_light.id, people_light.get_state(), people_light.get_priority(), current_queue_size)
 
 
 # главная компилирующая функция перекрестка   
-def main():     
+def main():  
+
+    avto_lights, people_lights = create_lights()                # набор автомобильных и пешеходных светофоров
+    adaptation_avto, adaptation_people = connect_adaptation(avto_lights, people_lights)   # экземпляры класса адаптации
+
+    traffic_lights = avto_lights.copy()                     
+    traffic_lights.extend(people_lights)                        # сообщество всех светофоров перекрестка
+
+
     while True:
         for avtolight in avto_lights:
             # если список зависимостей светофора пуст
@@ -408,12 +429,5 @@ def main():
 
 # точка входа
 if __name__ == '__main__':
-    avto_lights, people_lights = create_lights()                # набор автомобильных и пешеходных светофоров
-
-    adaptation_avto, adaptation_people = connect_adaptation()   # экземпляры класса адаптации    
-
-    traffic_lights = avto_lights.copy()                     
-    traffic_lights.extend(people_lights)                        # сообщество всех светофоров перекрестка
-
     main()                                                      # запуск цикла событий
     
